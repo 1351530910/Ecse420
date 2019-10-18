@@ -177,6 +177,7 @@ void rectification(const char* input_filename, const char* output_filename,const
 	//note the time
 	clock_t StartTime = clock();
 
+
 	//initialize cuda
 	if (cudaError = cudaSetDevice(0)) goto Error;
 	if (cudaError = cudaMalloc((void**)&cudaImage,length*sizeof(unsigned char))) goto Error;
@@ -229,7 +230,7 @@ void main(int argc, const char* argv[]) {
 	const char* rect = "rect.png";
 	const char* poll = "poll.png";
 
-	for (size_t exp = 12; exp < 14; exp++)
+	for (size_t exp = 0; exp < 6; exp++)
 	{
 		std::cout << int(std::pow(2, exp)) << " threads\tquestion 1:";
 		rectification(
