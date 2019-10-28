@@ -44,24 +44,24 @@ __global__ void poll(unsigned char* upImage, unsigned char* downImage, unsigned 
 	int x = threadIdx.x;
 	for (int i = 0; i < 4; i++)	//loop for RGBA
 	{
-		out[x*4+i] = upImage[x*8+i]; //assume first one is max
-		if (upImage[x*8+4+i] > out[x*4+i])	//replace if the value is higher
-			out[x*4+i] = upImage[x*8+4+i];
-		if (downImage[x*8+i] > out[x*4+i])
-			out[x*4+i] = downImage[x*8+i];
-		if (downImage[x*8+4+i] > out[x*4+i])
-			out[x*4+i] = downImage[x*8+4+i];
+		out[x * 4 + i] = upImage[x * 8 + i]; //assume first one is max
+		if (upImage[x * 8 + 4 + i] > out[x * 4 + i])	//replace if the value is higher
+			out[x * 4 + i] = upImage[x * 8 + 4 + i];
+		if (downImage[x * 8 + i] > out[x * 4 + i])
+			out[x * 4 + i] = downImage[x * 8 + i];
+		if (downImage[x * 8 + 4 + i] > out[x * 4 + i])
+			out[x * 4 + i] = downImage[x * 8 + 4 + i];
 	}
 }
 
 void polling(const char* input_filename, const char* output_filename, const int maxThreads) {
-	
+
 	//initial variables
 	unsigned error;
 	unsigned char* image, * new_image;
 	unsigned char* upImage, * downImage;
 	unsigned int width, height;
-	unsigned char* cudaUpImage,* cudaDownImage, * cudaNewImage;
+	unsigned char* cudaUpImage, * cudaDownImage, * cudaNewImage;
 	cudaError_t cudaError;
 
 	//load image file
@@ -75,15 +75,15 @@ void polling(const char* input_filename, const char* output_filename, const int 
 
 	//compute the length of the arrays
 	int length = width * height * 2;
-	new_image = new unsigned char[length/2];
+	new_image = new unsigned char[length / 2];
 	upImage = new unsigned char[length];
 	downImage = new unsigned char[length];
 
 	//divide the image to two new images 
-	for (int i = 0; i < height/2; i++)
+	for (int i = 0; i < height / 2; i++)
 	{
-		memcpy(upImage + (i * width*4), image + (2 * i * width*4), width *4* sizeof(unsigned char));
-		memcpy(downImage + (i * width*4), image + (2 * i * width*4+width*4), width*4 * sizeof(unsigned char));
+		memcpy(upImage + (i * width * 4), image + (2 * i * width * 4), width * 4 * sizeof(unsigned char));
+		memcpy(downImage + (i * width * 4), image + (2 * i * width * 4 + width * 4), width * 4 * sizeof(unsigned char));
 	}
 
 	//for debug purpose
@@ -93,18 +93,18 @@ void polling(const char* input_filename, const char* output_filename, const int 
 	if (cudaError = cudaSetDevice(0)) goto Error;
 	if (cudaError = cudaMalloc((void**)&cudaUpImage, length * sizeof(unsigned char))) goto Error;
 	if (cudaError = cudaMalloc((void**)&cudaDownImage, length * sizeof(unsigned char))) goto Error;
-	if (cudaError = cudaMalloc((void**)&cudaNewImage, length/2 * sizeof(unsigned char))) goto Error;
-	if (cudaError = cudaMemcpy(cudaUpImage,upImage,length*sizeof(unsigned char),cudaMemcpyHostToDevice)) goto Error;
+	if (cudaError = cudaMalloc((void**)&cudaNewImage, length / 2 * sizeof(unsigned char))) goto Error;
+	if (cudaError = cudaMemcpy(cudaUpImage, upImage, length * sizeof(unsigned char), cudaMemcpyHostToDevice)) goto Error;
 	if (cudaError = cudaMemcpy(cudaDownImage, downImage, length * sizeof(unsigned char), cudaMemcpyHostToDevice)) goto Error;
 
 	//save a copy of pointers
 	unsigned char* cudaUpImageCpy = cudaUpImage,
 		* cudaDownImageCpy = cudaDownImage,
-		*cudaOutImage = cudaNewImage;
-	
+		* cudaOutImage = cudaNewImage;
+
 	//total number of pixels
-	int npixels = width*height/4;
-	
+	int npixels = width * height / 4;
+
 	//cuda runtime loop
 	while (npixels > maxThreads)
 	{
@@ -126,11 +126,11 @@ void polling(const char* input_filename, const char* output_filename, const int 
 	if (cudaError = cudaDeviceSynchronize()) goto Error;
 
 	//copy back the result
-	if (cudaError = cudaMemcpy(new_image, cudaNewImage, length/2 * sizeof(unsigned char), cudaMemcpyDeviceToHost)) goto Error;
+	if (cudaError = cudaMemcpy(new_image, cudaNewImage, length / 2 * sizeof(unsigned char), cudaMemcpyDeviceToHost)) goto Error;
 
 
 	std::cout << (clock() - StartTime) / double(CLOCKS_PER_SEC);
-	lodepng_encode32_file(output_filename, new_image, width/2, height/2);
+	lodepng_encode32_file(output_filename, new_image, width / 2, height / 2);
 	goto End;
 
 Error:
@@ -154,7 +154,7 @@ __global__ void rectify(unsigned const char* in, unsigned char* out) {
 	else out[i] = in[i];
 }
 
-void rectification(const char* input_filename, const char* output_filename,const int maxThreads) {
+void rectification(const char* input_filename, const char* output_filename, const int maxThreads) {
 
 	//variables
 	unsigned error;
@@ -164,7 +164,7 @@ void rectification(const char* input_filename, const char* output_filename,const
 	cudaError_t cudaError;
 
 	error = lodepng_decode32_file(&image, &width, &height, input_filename);
-	
+
 	if (error) {
 		std::cerr << "error " << error << ": " << lodepng_error_text(error) << std::endl;;
 		goto Error;
@@ -180,24 +180,24 @@ void rectification(const char* input_filename, const char* output_filename,const
 
 	//initialize cuda
 	if (cudaError = cudaSetDevice(0)) goto Error;
-	if (cudaError = cudaMalloc((void**)&cudaImage,length*sizeof(unsigned char))) goto Error;
+	if (cudaError = cudaMalloc((void**)&cudaImage, length * sizeof(unsigned char))) goto Error;
 	if (cudaError = cudaMalloc((void**)&cudaNewImage, length * sizeof(unsigned char))) goto Error;
-	if (cudaError = cudaMemcpy(cudaImage,image,length*sizeof(unsigned char),cudaMemcpyHostToDevice)) goto Error;
+	if (cudaError = cudaMemcpy(cudaImage, image, length * sizeof(unsigned char), cudaMemcpyHostToDevice)) goto Error;
 
 	//save a copy of the initial pointers 
 	unsigned char* cudaImageCpy = cudaImage,
 		* cudaNewImageCpy = cudaNewImage;
 
 	//number of pixels left
-	int left = width * height * 4-1;
-	while (left> maxThreads)
+	int left = width * height * 4 - 1;
+	while (left > maxThreads)
 	{
-		rectify <<< 1, maxThreads >>> (cudaImageCpy, cudaNewImageCpy);
+		rectify << < 1, maxThreads >> > (cudaImageCpy, cudaNewImageCpy);
 		if (cudaError = cudaGetLastError()) goto Error;
 		cudaImageCpy += maxThreads;
 		cudaNewImageCpy += maxThreads;
 		left -= maxThreads;
-		
+
 	}
 
 	//compute the remaining pixels
@@ -207,14 +207,14 @@ void rectification(const char* input_filename, const char* output_filename,const
 	if (cudaError = cudaMemcpy(new_image, cudaNewImage, length * sizeof(unsigned char), cudaMemcpyDeviceToHost)) goto Error;
 
 
-	std::cout <<  (clock() - StartTime) / double(CLOCKS_PER_SEC);
+	std::cout << (clock() - StartTime) / double(CLOCKS_PER_SEC);
 	lodepng_encode32_file(output_filename, new_image, width, height);
 	goto End;
 
 Error:
 	//print error
-	std::cerr << "cuda error: " << cudaGetErrorString(cudaError) <<std::endl;
-	
+	std::cerr << "cuda error: " << cudaGetErrorString(cudaError) << std::endl;
+
 End:
 	//free memories allocated
 	cudaFree(cudaImage);
@@ -225,7 +225,7 @@ End:
 
 
 void main(int argc, const char* argv[]) {
-	
+
 	const char* input = "test.png";
 	const char* rect = "rect.png";
 	const char* poll = "poll.png";
@@ -248,7 +248,7 @@ void main(int argc, const char* argv[]) {
 		std::cout << "\t" << get_MSE("poll.png", "test_pooling.png");
 		std::cout << std::endl;
 	}
-	
+
 
 	//const char* input = argv[1];
 	//const char* output = argv[2];

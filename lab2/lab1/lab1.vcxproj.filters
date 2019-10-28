@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Headers">
+      <UniqueIdentifier>{77a1b09b-6108-4372-9ed4-312c34551d3c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources">
+      <UniqueIdentifier>{828f8ea8-ecae-490a-9d31-1e2323e9bedc}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="lodepng.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="constants.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="lodepng.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="matrix.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="lab1.cpp">
+      <Filter>Sources</Filter>
+    </CudaCompile>
+    <CudaCompile Include="lab2.cpp">
+      <Filter>Sources</Filter>
+    </CudaCompile>
+    <CudaCompile Include="matrix.h">
+      <Filter>Headers</Filter>
+    </CudaCompile>
+  </ItemGroup>
+</Project>
