@@ -5,7 +5,7 @@
 
 #include <iostream>
 #include <fstream>
-#include <time.h>
+#include <chrono>
 #include <string>
 
 #include "lodepng.h"
@@ -47,7 +47,7 @@ __global__ void d_convolution(matrix<float>& input, matrix<float>& transformatio
 double h_convolution(const char* input_filename, const char* output_filename, const int nthreads, const int weightMatrixSize) {
 
 	//note the time
-	clock_t StartTime = clock();
+	auto start = std::chrono::high_resolution_clock::now();
 
 	unsigned error;
 	unsigned char* image;
@@ -147,7 +147,7 @@ End:
 	delete output;
 	delete wm;
 	delete[] outImage;
-	return (clock() - StartTime) / double(CLOCKS_PER_SEC);
+	return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count()*0.01;
 }
 
 void print(matrix<int>* m) {
@@ -177,7 +177,7 @@ void main(int argc, const char* argv[]) {
 	std::ofstream result;
 	result.open("result.txt");
 	srand(time(0));
-	for (size_t i = 1; i < 100; i++)
+	for (size_t i = 1; i <= 102; i++)
 	{
 		
 		int s = i*10;
@@ -191,10 +191,15 @@ void main(int argc, const char* argv[]) {
 			}
 		}
 		m.toCuda();
-		matrix<double> n(s,s,m.arr);
-		clock_t StartTime = double(clock());
+		vector<double> v(s, m.arr);
+		auto start = std::chrono::high_resolution_clock::now();
 		m.invert();
-		result <<s<<"\t"<< std::to_string((double(clock()) - StartTime) / double(CLOCKS_PER_SEC))<<std::endl;
+		auto invert = std::chrono::high_resolution_clock::now();
+		auto k = v * m;
+		auto multiply = std::chrono::high_resolution_clock::now();
+		result <<s
+			<<"\t"<< std::chrono::duration_cast<std::chrono::nanoseconds>(invert - start).count()*0.01
+			<<"\t"<< std::chrono::duration_cast<std::chrono::nanoseconds>(multiply - invert).count()*0.01 <<std::endl;
 
 	}
 	
