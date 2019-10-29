@@ -172,30 +172,30 @@ void main(int argc, const char* argv[]) {
 
 
 	cudaSetDevice(0);
+
+
 	std::ofstream result;
 	result.open("result.txt");
 	srand(time(0));
 	for (size_t i = 1; i < 100; i++)
 	{
+		
 		int s = i*10;
-		double* arr = new double[s * s];
-		for (size_t j = 0; j < s*s; j++)
+
+		matrix<double> m(s, s);
+		for (size_t j = 0; j < s; j++)
 		{
-			arr[j] = rand()%10;
+			for (size_t k = 0; k < s; k++)
+			{
+				m[j][k] = rand() % 10;
+			}
 		}
-		
-		matrix<double> m(s, s, arr);
-		
+		m.toCuda();
+		matrix<double> n(s,s,m.arr);
 		clock_t StartTime = double(clock());
-		auto n = m.inverse();
+		m.invert();
 		result <<s<<"\t"<< std::to_string((double(clock()) - StartTime) / double(CLOCKS_PER_SEC))<<std::endl;
-		n[1][1] = 1;
 
-		//vector<double> v(s, arr);
-		//vector<double> res = v * m;
-		//vector<double> org = res * m.inverse();
-
-		delete[] arr;
 	}
 	
 	

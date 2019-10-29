@@ -12,7 +12,7 @@ class matrix
 {
 private:
 	bool host = true;
-	matrix* cudamatrix = 0;
+	matrix<T>* cudamatrix = 0;
 	T* cudaarr = 0;
 public:
 	int width = 0;
@@ -20,7 +20,9 @@ public:
 	int length1d  = 0;
 	T* arr = 0;
 	
-	matrix() {}
+	matrix() {
+		
+	}
 	matrix(int width,int height):width(width),height(height),length1d(width*height)
 	{
 		arr = new T[width*height];
@@ -38,7 +40,6 @@ public:
 	matrix(int width, int height,T* data) :width(width), height(height), length1d(width* height)
 	{
 		arr = new T[width * height];
-		int count = width * height;
 		memcpy(arr, data, width * height * sizeof(T));
 		if (host)
 		{
@@ -62,13 +63,15 @@ public:
 				cudaFree(cudamatrix);
 			if (cudaarr)
 				cudaFree(cudaarr);
+			delete[] arr;
 			
 		}
-		
+		arr = 0;
+		cudamatrix = 0;
+		cudaarr = 0;
 	}
 
-	__host__ matrix<T>& inverse() {
-
+	__host__ bool invert() {
 		//construct an identity matrix
 		matrix<T> Identity(width, height);
 		for (size_t i = 0; i < Identity.length1d; i++)
@@ -106,16 +109,16 @@ public:
 		T n;
 		cudaMemcpy(&n, cudaarr, sizeof(T), cudaMemcpyDeviceToHost);
 
-		//restore cuda matrix
-		toCuda();
-
-		if (n==0)
+		if (n)
 		{
-			return *this;
+			IC.fromCuda();
+			cudaMemcpy(arr, IC.cudaarr, sizeof(T), cudaMemcpyDeviceToHost);
+			toCuda();
+			return true;
 		}
 		else {
-			IC.fromCuda();
-			return IC;
+			toCuda();
+			return false;
 		}
 	}
 
