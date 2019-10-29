@@ -5,27 +5,25 @@
 #include <device_launch_parameters.h>
 
 #include <iostream>
-
-
-
+#include "vector.h"
 
 template <typename T>
 class matrix
 {
 private:
 	bool host = true;
-
+	matrix* cudamatrix = 0;
+	T* cudaarr = 0;
 public:
-	int width;
-	int height;
-	int length1d;
-	T* arr;
-	matrix* cudamatrix;
-	T* cudaarr;
+	int width = 0;
+	int height = 0;
+	int length1d  = 0;
+	T* arr = 0;
+	
 	matrix() {}
 	matrix(int width,int height):width(width),height(height),length1d(width*height)
 	{
-		arr = new T[width * height];
+		arr = new T[width*height];
 		matrix m;
 		m.host = false;
 		m.width = width;
@@ -64,60 +62,44 @@ public:
 				cudaFree(cudamatrix);
 			if (cudaarr)
 				cudaFree(cudaarr);
-			delete[] arr;
+			
 		}
 		
 	}
 
-	__host__ matrix<T>* transpose() {
-		auto m = new matrix<T>(height, width);
-
-		int index = 0;
-		while (index<length1d)
-		{
-			d_transpose<<<width,height>>>(m->getCudaMatrix(), getCudaMatrix(), index);
-			auto err = cudaGetLastError();
-			index += 1024;
-		}
-		m->fromCuda();
-		cudaDeviceSynchronize();
-		return m;
-	}
-	__host__ matrix<T>* inverse() {
+	__host__ matrix<T>& inverse() {
 
 		//construct an identity matrix
-		auto Identity = new matrix<T>(width, height);
-		for (size_t i = 0; i < Identity->length1d; i++)
+		matrix<T> Identity(width, height);
+		for (size_t i = 0; i < Identity.length1d; i++)
 		{
-			Identity->arr[i] = 0;
+			Identity.arr[i] = 0;
 		}
-		for (size_t i = 0; i < Identity->width; i++)
-			(*Identity)[i][i] = 1;
-		Identity->toCuda();
+		for (size_t i = 0; i < Identity.width; i++)
+			Identity[i][i] = 1;
+		Identity.toCuda();
 
 		//a temp clone of the two
-		auto clone = new matrix<T>(width, height, arr);
-		auto IC = new matrix<T>(width, height, Identity->arr);
+		matrix<T> clone(width, height, arr);
+		matrix<T> IC(width, height, Identity.arr);
 
-		for (size_t i = 0; i < Identity->width; i++)
+		for (size_t i = 0; i < Identity.width; i++)
 		{
-			d_inverse << <height, width >> > (getCudaMatrix(), clone->getCudaMatrix(), Identity->getCudaMatrix(), IC->getCudaMatrix(), i);
+			d_inverse << <height, width >> > (getCudaMatrix(), clone.getCudaMatrix(), Identity.getCudaMatrix(), IC.getCudaMatrix(), i);
 			cudaDeviceSynchronize();
-			copy<<<height,width>>>(clone->getCudaMatrix(), getCudaMatrix());
-			copy << <height, width >> > (IC->getCudaMatrix(), Identity->getCudaMatrix());
+			copy<<<height,width>>>(clone.getCudaMatrix(), getCudaMatrix());
+			copy << <height, width >> > (IC.getCudaMatrix(), Identity.getCudaMatrix());
 			cudaDeviceSynchronize();
 #if DEBUG
 			fromCuda();
-			Identity->fromCuda();
+			Identity.fromCuda();
 			print();
-			Identity->print();
-#endif // DEBUG
-
-			
+			Identity.print();
+#endif 
 		}
 
 		//normalize inverse matrix
-		d_normalize << <height, width >> > (getCudaMatrix(), IC->getCudaMatrix());
+		d_normalize << <height, width >> > (getCudaMatrix(), IC.getCudaMatrix());
 		cudaDeviceSynchronize();
 
 		//verify if success
@@ -127,20 +109,14 @@ public:
 		//restore cuda matrix
 		toCuda();
 
-		delete clone;
-		delete Identity;
-
 		if (n==0)
 		{
-			delete IC;
-			return 0;
+			return *this;
 		}
 		else {
-			IC->fromCuda();
+			IC.fromCuda();
 			return IC;
 		}
-
-
 	}
 
 	void print() {
@@ -155,78 +131,93 @@ public:
 		std::cout << std::endl;
 	}
 
-	__host__ matrix<T>* getCudaMatrix() {
-		return cudamatrix;
+	__host__ inline matrix<T>& getCudaMatrix() {
+		return *cudamatrix;
 	}
-	__host__ void toCuda() {
-		auto err = cudaMemcpy(cudaarr,arr, width * height * sizeof(T), cudaMemcpyHostToDevice);
-		if (err)
-			std::cout << "tocuda error " << err;
+	__host__ inline void toCuda() {
+		cudaMemcpy(cudaarr,arr, width * height * sizeof(T), cudaMemcpyHostToDevice);
 	}
-	__host__ void fromCuda() {
-		auto err = cudaMemcpy(arr, cudaarr, width * height * sizeof(T),cudaMemcpyDeviceToHost);
-		if (err)
-			std::cout << "tocuda error " << err;
+	__host__ inline void fromCuda() {
+		cudaMemcpy(arr, cudaarr, width * height * sizeof(T),cudaMemcpyDeviceToHost);
 	}
-	__device__ __host__ T* operator[](int index) {
+	__device__ __host__ inline T* operator[](int index) {
 		return &arr[index * width];
 	}
 };
 
-template <typename T>
-__global__ void d_transpose(matrix<T>* dest, matrix<T>* src, int index) {
-	
-	if (index >= dest->length1d)
-		return;
-
-	int x = threadIdx.x+index;
-	int y = blockIdx.x;
-	//check out of bound
-	if (x >= src->width||y>=src->height) return;
-
-	(*dest)[x][y] = (*src)[y][x];
-}
 
 template <typename T>
-__global__ void d_inverse(matrix<T>* m,matrix<T>* clone,matrix<T>* inv,matrix<T>* IC,const int index) {
+__global__ void d_inverse(matrix<T>& m,matrix<T>& clone,matrix<T>& inv,matrix<T>& IC,const int index) {
 	int x = threadIdx.x;
 	int y = blockIdx.x;
 	int cy = index;
 	
 	//find the cy
-	while ((*m)[cy][index]==0)
+	while (m[cy][index]==0)
 	{
 		//all 0, matrix not invertible
-		if (++cy == m->height) {
-			(*clone)[y][x] = 0;
+		if (++cy == m.height) {
+			clone[y][x] = 0;
 			return;
 		}
 	}
 
-	if (y!=cy&& (*m)[y][index]!=0)
+	if (y!=cy&& m[y][index]!=0)
 	{
-		(*clone)[y][x] = (*m)[y][x] * (*m)[cy][index] / (*m)[y][index] - (*m)[cy][x];
-		(*IC)[y][x] = (*inv)[y][x] * (*m)[cy][index] / (*m)[y][index] - (*inv)[cy][x];
+		clone[y][x] = m[y][x] * m[cy][index] / m[y][index] - m[cy][x];
+		IC[y][x] = inv[y][x] * m[cy][index] / m[y][index] - inv[cy][x];
 	}
 	else {
-		(*clone)[y][x] = (*m)[y][x];
-		(*IC)[y][x] = (*inv)[y][x];
+		clone[y][x] = m[y][x];
+		IC[y][x] = inv[y][x];
 	}
 }
 
 template <typename T>
-__global__ void d_normalize(matrix<T>* m, matrix<T>* inv) {
+__global__ void d_normalize(matrix<T>& m, matrix<T>& inv) {
 	int x = threadIdx.x;
 	int y = blockIdx.x;
-	if ((*m)[y][y]!=0)
+	if (m[y][y]!=0)
 	{
-		(*inv)[y][x] = (*inv)[y][x] / (*m)[y][y];
+		inv[y][x] = inv[y][x] / m[y][y];
 	}
 }
 
 template <typename T>
-__global__ void copy(matrix<T>* src, matrix<T>* dest) {
+__global__ void copy(matrix<T>& src, matrix<T>& dest) {
 	int x = threadIdx.x;
 	int y = blockIdx.x;
-	(*dest)[y][x] = (*src)[y][x];
+	dest[y][x] = src[y][x];
+}
+
+template <typename T>
+vector<T>& operator*(matrix<T>& m, vector<T>& v) {
+	vector<T> temp(v.length,v.arr);
+	multiply << <m.height, m.width >> > (m.getCudaMatrix(), v.getCudaVector());
+	cudaDeviceSynchronize();
+	toVector << <1, v.length >> > (m.getCudaMatrix(), temp.getCudaVector());
+	cudaDeviceSynchronize();
+	temp.fromCuda();
+	m.toCuda();
+	return temp;
+}
+template <typename T>
+vector<T>& operator*(vector<T>& v,matrix<T>& m) {
+	return m * v;
+}
+template <typename T>
+__global__ void multiply(matrix<T>& m, vector<T>& v) {
+	int x = threadIdx.x;
+	int y = blockIdx.x;
+	m[y][x] = m[y][x] * v[x];
+}
+
+template <typename T>
+__global__ void toVector(matrix<T>& m, vector<T>& v) {
+	int x = threadIdx.x;
+	v[x] = 0;
+	for (size_t i = 0; i < m.width; i++)
+	{
+		v[x] += m[x][i];
+	}
 }

@@ -4,43 +4,44 @@
 #include <device_launch_parameters.h>
 
 #include <iostream>
+#include <fstream>
 #include <time.h>
+#include <string>
 
 #include "lodepng.h"
 #include "matrix.h"
-#include <vector>
 #include "constants.h"
 
-__global__ void d_convolution(matrix<float>* input, matrix<float>* transformation, matrix<float>* output, int i) {
+__global__ void d_convolution(matrix<float>& input, matrix<float>& transformation, matrix<float>& output, int i) {
 
 	int index = i + threadIdx.x + blockIdx.x * 1024;
 	
 	//check for out of bound
-	if (index >= output->length1d) return;
+	if (index >= output.length1d) return;
 
 	//compute the pixel x
-	int x = index / output->height;
-	int y = index % output->height;
+	int x = index / output.height;
+	int y = index % output.height;
 
 	//do not modify opacity
 	if (x%4==3)
 	{
-		(*output)[y][x] = 255;
+		output[y][x] = 255;
 		return;
 	}
 	float sum = 0;
 	
-	for (int i = 0; i < transformation->width; i++)
+	for (int i = 0; i < transformation.width; i++)
 	{
-		for (int j = 0; j < transformation->height; j++)
+		for (int j = 0; j < transformation.height; j++)
 		{
-			sum += (*input)[y + j][x + i * 4] * (*transformation)[j][i];
+			sum += input[y + j][x + i * 4] * transformation[j][i];
 		}
 	}
 
 	if (sum < 0) sum = 0;
 	if (sum > 255) sum = 255;
-	(*output)[y][x] = sum;
+	output[y][x] = sum;
 }
 
 double h_convolution(const char* input_filename, const char* output_filename, const int nthreads, const int weightMatrixSize) {
@@ -163,28 +164,38 @@ void print(matrix<int>* m) {
 void main(int argc, const char* argv[]) {
 
 
-	/*const char* image = "original.png";
+	//const char* image = "original.png";
 
-	std::cout << h_convolution(image, "333.png", 1024, 3) << std::endl;
-	std::cout << h_convolution(image, "555.png", 1024, 5) << std::endl;
-	std::cout << h_convolution(image, "777.png", 1024, 7) << std::endl;*/
+	//std::cout << h_convolution(image, "333.png", 1024, 3) << std::endl;
+	//std::cout << h_convolution(image, "555.png", 1024, 5) << std::endl;
+	//std::cout << h_convolution(image, "777.png", 1024, 7) << std::endl;
 
 
 	cudaSetDevice(0);
-	
+	std::ofstream result;
+	result.open("result.txt");
 	srand(time(0));
-	for (size_t i = 0; i < 11; i++)
+	for (size_t i = 1; i < 100; i++)
 	{
-		int s = i;
+		int s = i*10;
 		double* arr = new double[s * s];
 		for (size_t j = 0; j < s*s; j++)
 		{
-			arr[j] = rand();
+			arr[j] = rand()%10;
 		}
-		matrix<double>* m = new matrix<double>(s, s, arr);
-		auto n = m->inverse();
-		delete n;
-		delete m;
+		
+		matrix<double> m(s, s, arr);
+		
+		clock_t StartTime = double(clock());
+		auto n = m.inverse();
+		result <<s<<"\t"<< std::to_string((double(clock()) - StartTime) / double(CLOCKS_PER_SEC))<<std::endl;
+		n[1][1] = 1;
+
+		//vector<double> v(s, arr);
+		//vector<double> res = v * m;
+		//vector<double> org = res * m.inverse();
+
+		delete[] arr;
 	}
 	
 	
