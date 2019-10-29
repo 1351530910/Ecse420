@@ -15,8 +15,6 @@ class matrix
 private:
 	bool host = true;
 
-	
-
 public:
 	int width;
 	int height;
@@ -85,24 +83,94 @@ public:
 		cudaDeviceSynchronize();
 		return m;
 	}
-	__host__ float determinant() {
+	__host__ matrix<T>* inverse() {
 
+		//construct an identity matrix
+		auto Identity = new matrix<T>(width, height);
+		for (size_t i = 0; i < Identity->length1d; i++)
+		{
+			Identity->arr[i] = 0;
+		}
+		for (size_t i = 0; i < Identity->width; i++)
+			(*Identity)[i][i] = 1;
+		Identity->toCuda();
+
+		//a temp clone of the two
+		auto clone = new matrix<T>(width, height, arr);
+		auto IC = new matrix<T>(width, height, Identity->arr);
+
+		for (size_t i = 0; i < Identity->width; i++)
+		{
+			d_inverse << <height, width >> > (getCudaMatrix(), clone->getCudaMatrix(), Identity->getCudaMatrix(), IC->getCudaMatrix(), i);
+			cudaDeviceSynchronize();
+			copy<<<height,width>>>(clone->getCudaMatrix(), getCudaMatrix());
+			copy << <height, width >> > (IC->getCudaMatrix(), Identity->getCudaMatrix());
+			cudaDeviceSynchronize();
+#if DEBUG
+			fromCuda();
+			Identity->fromCuda();
+			print();
+			Identity->print();
+#endif // DEBUG
+
+			
+		}
+
+		//normalize inverse matrix
+		d_normalize << <height, width >> > (getCudaMatrix(), IC->getCudaMatrix());
+		cudaDeviceSynchronize();
+
+		//verify if success
+		T n;
+		cudaMemcpy(&n, cudaarr, sizeof(T), cudaMemcpyDeviceToHost);
+
+		//restore cuda matrix
+		toCuda();
+
+		delete clone;
+		delete Identity;
+
+		if (n==0)
+		{
+			delete IC;
+			return 0;
+		}
+		else {
+			IC->fromCuda();
+			return IC;
+		}
+
+
+	}
+
+	void print() {
+		for (size_t i = 0; i < height; i++)
+		{
+			for (size_t j = 0; j < width; j++)
+			{
+				std::cout << (*this)[i][j] << "\t";
+			}
+			std::cout << std::endl;
+		}
+		std::cout << std::endl;
 	}
 
 	__host__ matrix<T>* getCudaMatrix() {
 		return cudamatrix;
 	}
 	__host__ void toCuda() {
-		cudaMemcpy(cudaarr,arr, width * height * sizeof(T), cudaMemcpyHostToDevice);
+		auto err = cudaMemcpy(cudaarr,arr, width * height * sizeof(T), cudaMemcpyHostToDevice);
+		if (err)
+			std::cout << "tocuda error " << err;
 	}
 	__host__ void fromCuda() {
-		cudaMemcpy(arr, cudaarr, width * height * sizeof(T),cudaMemcpyDeviceToHost);
+		auto err = cudaMemcpy(arr, cudaarr, width * height * sizeof(T),cudaMemcpyDeviceToHost);
+		if (err)
+			std::cout << "tocuda error " << err;
 	}
-	__device__ __host__ inline T* operator[](int index) {
+	__device__ __host__ T* operator[](int index) {
 		return &arr[index * width];
 	}
-	
-
 };
 
 template <typename T>
@@ -120,17 +188,45 @@ __global__ void d_transpose(matrix<T>* dest, matrix<T>* src, int index) {
 }
 
 template <typename T>
-__global__ void d_determinant(matrix<T>* dest, matrix<T>* src, int index) {
-
-	if (index >= dest->length1d)
-		return;
-
-	int x = threadIdx.x + index;
+__global__ void d_inverse(matrix<T>* m,matrix<T>* clone,matrix<T>* inv,matrix<T>* IC,const int index) {
+	int x = threadIdx.x;
 	int y = blockIdx.x;
-	int sign = ((x + y) % 2) * 2 - 1;
-
-	//check out of bound
-	if (x >= dest->width || y >= dest->height) return;
-
+	int cy = index;
 	
+	//find the cy
+	while ((*m)[cy][index]==0)
+	{
+		//all 0, matrix not invertible
+		if (++cy == m->height) {
+			(*clone)[y][x] = 0;
+			return;
+		}
+	}
+
+	if (y!=cy&& (*m)[y][index]!=0)
+	{
+		(*clone)[y][x] = (*m)[y][x] * (*m)[cy][index] / (*m)[y][index] - (*m)[cy][x];
+		(*IC)[y][x] = (*inv)[y][x] * (*m)[cy][index] / (*m)[y][index] - (*inv)[cy][x];
+	}
+	else {
+		(*clone)[y][x] = (*m)[y][x];
+		(*IC)[y][x] = (*inv)[y][x];
+	}
+}
+
+template <typename T>
+__global__ void d_normalize(matrix<T>* m, matrix<T>* inv) {
+	int x = threadIdx.x;
+	int y = blockIdx.x;
+	if ((*m)[y][y]!=0)
+	{
+		(*inv)[y][x] = (*inv)[y][x] / (*m)[y][y];
+	}
+}
+
+template <typename T>
+__global__ void copy(matrix<T>* src, matrix<T>* dest) {
+	int x = threadIdx.x;
+	int y = blockIdx.x;
+	(*dest)[y][x] = (*src)[y][x];
 }

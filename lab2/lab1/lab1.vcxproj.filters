@@ -15,12 +15,18 @@
     <ClInclude Include="constants.h">
       <Filter>Headers</Filter>
     </ClInclude>
+    <ClInclude Include="vector.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="lodepng.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="matrix.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="vector.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
   </ItemGroup>

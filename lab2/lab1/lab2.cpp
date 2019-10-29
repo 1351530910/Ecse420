@@ -163,12 +163,30 @@ void print(matrix<int>* m) {
 void main(int argc, const char* argv[]) {
 
 
-	const char* image = "original.png";
+	/*const char* image = "original.png";
 
 	std::cout << h_convolution(image, "333.png", 1024, 3) << std::endl;
 	std::cout << h_convolution(image, "555.png", 1024, 5) << std::endl;
-	std::cout << h_convolution(image, "777.png", 1024, 7) << std::endl;
+	std::cout << h_convolution(image, "777.png", 1024, 7) << std::endl;*/
 
 
+	cudaSetDevice(0);
+	
+	srand(time(0));
+	for (size_t i = 0; i < 11; i++)
+	{
+		int s = i;
+		double* arr = new double[s * s];
+		for (size_t j = 0; j < s*s; j++)
+		{
+			arr[j] = rand();
+		}
+		matrix<double>* m = new matrix<double>(s, s, arr);
+		auto n = m->inverse();
+		delete n;
+		delete m;
+	}
+	
+	
 	return;
 }

@@ -83,6 +83,7 @@
     <CudaCompile Include="lab1.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="vector.cpp" />
     <CudaCompile Include="lab2.cpp" />
     <ClCompile Include="lodepng.cpp" />
     <ClCompile Include="matrix.cpp" />
@@ -90,6 +91,7 @@
   <ItemGroup>
     <ClInclude Include="constants.h" />
     <ClInclude Include="lodepng.h" />
+    <ClInclude Include="vector.h" />
     <CudaCompile Include="matrix.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
