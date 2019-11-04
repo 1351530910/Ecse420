@@ -15,6 +15,7 @@ private:
 	matrix<T>* cudamatrix = 0;
 	T* cudaarr = 0;
 public:
+	float cudathreads = 1.0f;
 	int width = 0;
 	int height = 0;
 	int length1d  = 0;
@@ -85,13 +86,20 @@ public:
 		//a temp clone of the two
 		matrix<T> clone(width, height, arr);
 		matrix<T> IC(width, height, Identity.arr);
-
+		int count = ceil(width / cudathreads);
 		for (size_t i = 0; i < Identity.width; i++)
 		{
-			d_inverse << <height, width >> > (getCudaMatrix(), clone.getCudaMatrix(), Identity.getCudaMatrix(), IC.getCudaMatrix(), i);
+			for (size_t x = 0; x < count; x++)
+			{
+				d_inverse << <height, cudathreads >> > (getCudaMatrix(), clone.getCudaMatrix(), Identity.getCudaMatrix(), IC.getCudaMatrix(), i,x*cudathreads);
+			}
 			cudaDeviceSynchronize();
-			copy<<<height,width>>>(clone.getCudaMatrix(), getCudaMatrix());
-			copy << <height, width >> > (IC.getCudaMatrix(), Identity.getCudaMatrix());
+			for (size_t x = 0; x < count; x++)
+			{
+				copy << <height, cudathreads >> > (clone.getCudaMatrix(), getCudaMatrix(),  x * cudathreads);
+				copy << <height, cudathreads >> > (IC.getCudaMatrix(), Identity.getCudaMatrix(), x * cudathreads);
+			}
+			
 			cudaDeviceSynchronize();
 #if DEBUG
 			fromCuda();
@@ -102,7 +110,11 @@ public:
 		}
 
 		//normalize inverse matrix
-		d_normalize << <height, width >> > (getCudaMatrix(), IC.getCudaMatrix());
+		for (size_t x = 0; x < count; x++)
+		{
+			d_normalize << <height, cudathreads >> > (getCudaMatrix(), IC.getCudaMatrix(),x*cudathreads);
+		}
+		
 		cudaDeviceSynchronize();
 
 		//verify if success
@@ -111,8 +123,7 @@ public:
 
 		if (n)
 		{
-			IC.fromCuda();
-			cudaMemcpy(arr, IC.cudaarr, sizeof(T), cudaMemcpyDeviceToHost);
+			cudaMemcpy(arr, IC.cudaarr, width*height* sizeof(T), cudaMemcpyDeviceToHost);
 			toCuda();
 			return true;
 		}
@@ -150,10 +161,11 @@ public:
 
 
 template <typename T>
-__global__ void d_inverse(matrix<T>& m,matrix<T>& clone,matrix<T>& inv,matrix<T>& IC,const int index) {
-	int x = threadIdx.x;
+__global__ void d_inverse(matrix<T>& m,matrix<T>& clone,matrix<T>& inv,matrix<T>& IC,const int index,const int offset) {
+	int x = threadIdx.x+offset;
 	int y = blockIdx.x;
 	int cy = index;
+	if (x >= m.width) return;
 	
 	//find the cy
 	while (m[cy][index]==0)
@@ -177,9 +189,10 @@ __global__ void d_inverse(matrix<T>& m,matrix<T>& clone,matrix<T>& inv,matrix<T>
 }
 
 template <typename T>
-__global__ void d_normalize(matrix<T>& m, matrix<T>& inv) {
-	int x = threadIdx.x;
+__global__ void d_normalize(matrix<T>& m, matrix<T>& inv, const int offset) {
+	int x = threadIdx.x+offset;
 	int y = blockIdx.x;
+	if (x >= m.width) return;
 	if (m[y][y]!=0)
 	{
 		inv[y][x] = inv[y][x] / m[y][y];
@@ -187,18 +200,28 @@ __global__ void d_normalize(matrix<T>& m, matrix<T>& inv) {
 }
 
 template <typename T>
-__global__ void copy(matrix<T>& src, matrix<T>& dest) {
-	int x = threadIdx.x;
+__global__ void copy(matrix<T>& src, matrix<T>& dest, const int offset) {
+	int x = threadIdx.x+offset;
 	int y = blockIdx.x;
+	if (x >= src.width) return;
 	dest[y][x] = src[y][x];
 }
 
 template <typename T>
 vector<T>& operator*(matrix<T>& m, vector<T>& v) {
 	vector<T> temp(v.length,v.arr);
-	multiply << <m.height, m.width >> > (m.getCudaMatrix(), v.getCudaVector());
+	int count = ceil(m.width / m.cudathreads);
+	for (size_t x = 0; x < count; x++)
+	{
+		multiply << <m.height, m.cudathreads >> > (m.getCudaMatrix(), v.getCudaVector(),x*m.cudathreads);
+	}
+	
 	cudaDeviceSynchronize();
-	toVector << <1, v.length >> > (m.getCudaMatrix(), temp.getCudaVector());
+	for (size_t x = 0; x < count; x++)
+	{
+		toVector << <1, m.cudathreads >> > (m.getCudaMatrix(), temp.getCudaVector(), x * m.cudathreads);
+	}
+	
 	cudaDeviceSynchronize();
 	temp.fromCuda();
 	m.toCuda();
@@ -209,16 +232,18 @@ vector<T>& operator*(vector<T>& v,matrix<T>& m) {
 	return m * v;
 }
 template <typename T>
-__global__ void multiply(matrix<T>& m, vector<T>& v) {
-	int x = threadIdx.x;
+__global__ void multiply(matrix<T>& m, vector<T>& v,int offset) {
+	int x = threadIdx.x+offset;
 	int y = blockIdx.x;
+	if (x = m.width) return;
 	m[y][x] = m[y][x] * v[x];
 }
 
 template <typename T>
-__global__ void toVector(matrix<T>& m, vector<T>& v) {
-	int x = threadIdx.x;
+__global__ void toVector(matrix<T>& m, vector<T>& v,int offset) {
+	int x = threadIdx.x+offset;
 	v[x] = 0;
+	if (x >= v.length) return;
 	for (size_t i = 0; i < m.width; i++)
 	{
 		v[x] += m[x][i];

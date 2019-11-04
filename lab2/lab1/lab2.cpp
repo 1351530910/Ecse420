@@ -12,6 +12,7 @@
 #include "matrix.h"
 #include "constants.h"
 
+
 __global__ void d_convolution(matrix<float>& input, matrix<float>& transformation, matrix<float>& output, int i) {
 
 	int index = i + threadIdx.x + blockIdx.x * 1024;
@@ -163,21 +164,43 @@ void print(matrix<int>* m) {
 
 void main(int argc, const char* argv[]) {
 
+	//file path of the input image
+	const char* image = "original.png";
 
-	//const char* image = "original.png";
-
-	//std::cout << h_convolution(image, "333.png", 1024, 3) << std::endl;
-	//std::cout << h_convolution(image, "555.png", 1024, 5) << std::endl;
-	//std::cout << h_convolution(image, "777.png", 1024, 7) << std::endl;
+	//test from 0 thread to 1024 threads
+	//for (size_t i = 0; i < 11; i++)
+	//{
+	//	int t = pow(2, i);
+	//	std::cout << t << " ";
+	//	std::cout << h_convolution(image, "333.png", t, 3) << " ";
+	//	std::cout << h_convolution(image, "555.png", t, 5) << " ";
+	//	std::cout << h_convolution(image, "777.png", t, 7) << " ";
+	//	std::cout << std::endl;
+	//}
 
 
 	cudaSetDevice(0);
-
-
 	std::ofstream result;
 	result.open("result.txt");
-	srand(time(0));
-	for (size_t i = 1; i <= 102; i++)
+
+	for (size_t i = 0; i < 11; i++)
+	{
+		int nthread = pow(2, i);
+		matrix<float> m(512, 512, (float*)A_512);
+		vector<float> v(512, (float*)b_512);
+		m.cudathreads = nthread;
+		auto start = std::chrono::high_resolution_clock::now();
+		m.invert();
+		auto invert = std::chrono::high_resolution_clock::now();
+		auto n = v * m;
+		auto multiply = std::chrono::high_resolution_clock::now();
+		std::cout<< nthread
+			<< "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(invert - start).count() * 0.01
+			<< "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(multiply - invert).count() * 0.01 << std::endl;
+
+	}
+
+	/*for (size_t i = 1; i <= 102; i++)
 	{
 		
 		int s = i*10;
@@ -201,8 +224,9 @@ void main(int argc, const char* argv[]) {
 			<<"\t"<< std::chrono::duration_cast<std::chrono::nanoseconds>(invert - start).count()*0.01
 			<<"\t"<< std::chrono::duration_cast<std::chrono::nanoseconds>(multiply - invert).count()*0.01 <<std::endl;
 
-	}
+	}*/
 	
+	result.close();
 	
 	return;
 }
