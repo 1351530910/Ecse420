@@ -88,6 +88,7 @@ __global__ void d_corner(matrix<double>& u) {
 	}
 }
 
+//per grid of 16*16
 __global__ void d_decomposition(matrix<double>& u, matrix<double>& u1, matrix<double>& u2) {
 	const int N = u.height;
 	const int x = threadIdx.x;
@@ -214,21 +215,29 @@ void h_sequential(const long t,const long N,ostream* os) {
 
 void main(int argc,const char** argv) {
 
-	auto start = std::chrono::high_resolution_clock::now();
-	h_sequential(3, 512, 0);
-	auto seq = std::chrono::high_resolution_clock::now();
-	h_parallel(3, 512, 0);
-	auto par = std::chrono::high_resolution_clock::now();
-	h_decomposition(3, 0);
-	auto dec = std::chrono::high_resolution_clock::now();
+	ofstream time;
+	time.open("result.csv");
 
-	cout
-		<< std::chrono::duration_cast<std::chrono::nanoseconds>(seq - start).count() << "\t"
-		<< std::chrono::duration_cast<std::chrono::nanoseconds>(par - seq).count() << "\t"
-		<< std::chrono::duration_cast<std::chrono::nanoseconds>(dec - par).count() << "\t"
-		<< endl;
+	for (size_t i = 0; i < 30; i++)
+	{
+		auto start = std::chrono::high_resolution_clock::now();
+		h_sequential(3, 512, 0);
+		auto seq = std::chrono::high_resolution_clock::now();
+		h_parallel(3, 512, 0);
+		auto par = std::chrono::high_resolution_clock::now();
+		h_decomposition(3, 0);
+		auto dec = std::chrono::high_resolution_clock::now();
 
-	//compare output
+		time
+			<< i <<","
+			<< std::chrono::duration_cast<std::chrono::nanoseconds>(seq - start).count() << ","
+			<< std::chrono::duration_cast<std::chrono::nanoseconds>(par - seq).count() << ","
+			<< std::chrono::duration_cast<std::chrono::nanoseconds>(dec - par).count() << endl;
+	}
+
+	time.close();
+
+	//to check if all 3 has same output, use excel to compare those 3 files
 	/*ofstream seq;
 	ofstream par;
 	ofstream dec;
