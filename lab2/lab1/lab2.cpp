@@ -186,8 +186,8 @@ void main(int argc, const char* argv[]) {
 	for (size_t i = 0; i < 11; i++)
 	{
 		int nthread = pow(2, i);
-		matrix<float> m(512, 512, (float*)A_512);
-		vector<float> v(512, (float*)b_512);
+		matrix<float> m(1024, 1024, (float*)A_1024);
+		vector<float> v(1024, (float*)b_1024);
 		m.cudathreads = nthread;
 		auto start = std::chrono::high_resolution_clock::now();
 		m.invert();
@@ -197,7 +197,7 @@ void main(int argc, const char* argv[]) {
 		std::cout<< nthread
 			<< "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(invert - start).count() * 0.01
 			<< "\t" << std::chrono::duration_cast<std::chrono::nanoseconds>(multiply - invert).count() * 0.01 << std::endl;
-
+		
 	}
 
 	/*for (size_t i = 1; i <= 102; i++)
