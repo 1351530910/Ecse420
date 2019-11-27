@@ -96,7 +96,7 @@ std::ostream& operator<<(std::ostream& os,matrix<T>& m)
 	{
 		for (int j = 0; j < m.width; j++)
 		{
-			os << m[i][j] << "  \t";
+			os << m[i][j] << ",";
 		}
 		os << std::endl;
 	}
