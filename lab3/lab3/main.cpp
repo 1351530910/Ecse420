@@ -88,15 +88,15 @@ __global__ void d_corner(matrix<double>& u) {
 	}
 }
 
-//per grid of 16*16
-__global__ void d_decomposition(matrix<double>& u, matrix<double>& u1, matrix<double>& u2) {
+//per grid of k*k
+__global__ void d_decomposition(matrix<double>& u, matrix<double>& u1, matrix<double>& u2, int k) {
 	const int N = u.height;
 	const int x = threadIdx.x;
 	const int y = blockIdx.x;
 	if (!x) {//if x == 0
 		if (!y) {	//if y == 0
-			for (int i = 15 + x * 16; i >= x * 16; i--)
-				for (int j = 15 + y * 16; j >= y * 16; j--) {
+			for (int i = k-1 + x * k; i >= x * k; i--)
+				for (int j = k-1 + y * k; j >= y * k; j--) {
 					if (i && j)			normalCase;
 					else if (i && !j)	topBoundary;
 					else if (!i && j)	leftBoundary;
@@ -104,8 +104,8 @@ __global__ void d_decomposition(matrix<double>& u, matrix<double>& u1, matrix<do
 				}
 		}
 		else
-			for (int i = 15 + x * 16; i >= x * 16; i--)
-				for (int j = y * 16; j < y * 16 + 16; j++)
+			for (int i = k-1 + x * k; i >= x * k; i--)
+				for (int j = y * k; j < y * k + k; j++)
 					if (i)
 						if (j == N - 1) bottomBoundary;
 						else			normalCase;
@@ -115,8 +115,8 @@ __global__ void d_decomposition(matrix<double>& u, matrix<double>& u1, matrix<do
 	}
 	else { 	//if i > 0
 		if (!y) { 	//if j == 0
-			for (int i = x * 16; i < 16 + x * 16; i++)
-				for (int j = 15 + y * 16; j >= y * 16; j--)
+			for (int i = x * k; i < k + x * k; i++)
+				for (int j = k-1 + y * k; j >= y * k; j--)
 					if (j)
 						if (i == N - 1)	rightBoundary;
 						else			normalCase;
@@ -125,8 +125,8 @@ __global__ void d_decomposition(matrix<double>& u, matrix<double>& u1, matrix<do
 						else			topBoundary;
 		}
 		else
-			for (int i = x * 16; i < 16 + x * 16; i++)
-				for (int j = y * 16; j < y * 16 + 16; j++)
+			for (int i = x * k; i < k + x * k; i++)
+				for (int j = y * k; j < y * k + k; j++)
 					if (j == N - 1)
 						if (i == N - 1)	bottomright;
 						else			bottomBoundary;
@@ -136,7 +136,7 @@ __global__ void d_decomposition(matrix<double>& u, matrix<double>& u1, matrix<do
 	}
 }
 
-void h_decomposition(const long t, ostream* os) {
+void h_decomposition(const long t, ostream* os,int k) {
 	const int N = 512;
 	matrix<double> u(N, N);
 	matrix<double> u1(N, N);
@@ -149,7 +149,7 @@ void h_decomposition(const long t, ostream* os) {
 		CUDACHECK(cudaMemcpy(u2.cudaarr, u1.cudaarr, u1.memsize(), cudaMemcpyDeviceToDevice));
 		CUDACHECK(cudaMemcpy(u1.cudaarr, u.cudaarr, u1.memsize(), cudaMemcpyDeviceToDevice));
 		
-		d_decomposition << <N/16, N/16 >> > (*u.cudamatrix, *u1.cudamatrix, *u2.cudamatrix);
+		d_decomposition << <N/k, N/k >> > (*u.cudamatrix, *u1.cudamatrix, *u2.cudamatrix,k);
 		CUDACHECK(cudaDeviceSynchronize());
 		CUDACHECK(u.fromCuda());
 		if(os) *os << u << endl;
@@ -225,14 +225,19 @@ void main(int argc,const char** argv) {
 		auto seq = std::chrono::high_resolution_clock::now();
 		h_parallel(3, 512, 0);
 		auto par = std::chrono::high_resolution_clock::now();
-		h_decomposition(3, 0);
+		h_decomposition(3, 0,16);
 		auto dec = std::chrono::high_resolution_clock::now();
-
+		h_decomposition(3, 0, 8);
+		auto dec2 = std::chrono::high_resolution_clock::now();
+		h_decomposition(3, 0, 4);
+		auto dec3 = std::chrono::high_resolution_clock::now();
 		time
 			<< i <<","
 			<< std::chrono::duration_cast<std::chrono::nanoseconds>(seq - start).count() << ","
 			<< std::chrono::duration_cast<std::chrono::nanoseconds>(par - seq).count() << ","
-			<< std::chrono::duration_cast<std::chrono::nanoseconds>(dec - par).count() << endl;
+			<< std::chrono::duration_cast<std::chrono::nanoseconds>(dec - par).count() << ","
+			<< std::chrono::duration_cast<std::chrono::nanoseconds>(dec2 - dec).count() << ","
+			<< std::chrono::duration_cast<std::chrono::nanoseconds>(dec3 - dec2).count() << endl;
 	}
 
 	time.close();
